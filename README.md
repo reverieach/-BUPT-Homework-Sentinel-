@@ -25,7 +25,7 @@ playwright install chromium
 cp .env.example .env
 ```
 
-## 核心配置说明
+## env核心配置说明
 
 ### 1) `USER_ID` 是什么
 - 这是接口 `.../undone?userId=xxx` 的 `userId`（不是学号）
