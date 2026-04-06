@@ -55,7 +55,9 @@ MARKDOWN_APPEND=true
 - `markdown`：在当前运行目录输出/追加 `homework_reminders.md`
 
 ## QQ 邮箱 SMTP 配置
-先在 QQ 邮箱网页开启 SMTP 并获取“授权码”（不是登录密码）。
+说明：
+先在 QQ 邮箱网页开启 SMTP 并获取“授权码”（不是登录密码），教程网上很多。
+pushplus不可用情况下可打开qq邮箱微信提醒，也可收到微信消息。QQ 邮箱 SMTP设置简单，更推荐这种方式。
 
 `.env` 示例：
 ```env
@@ -67,11 +69,11 @@ SMTP_STARTTLS=false
 SMTP_USERNAME=你的QQ邮箱@qq.com
 SMTP_PASSWORD=QQ邮箱SMTP授权码
 SMTP_FROM=你的QQ邮箱@qq.com
-SMTP_TO=接收人1@qq.com,接收人2@qq.com
+SMTP_TO=接收人1@qq.com,接收人2@qq.com（填自己就是给自己发邮件提醒）
 ```
 
-## 微信推送（更简单，不用企业微信群）
-推荐 `pushplus`：微信扫码登录后拿 token 即可。
+## 微信推送
+推荐 `pushplus`：微信扫码登录后拿 token 即可，但需要实名认证。
 
 `.env` 示例：
 ```env
