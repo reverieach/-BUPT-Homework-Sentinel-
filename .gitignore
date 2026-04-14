@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# VBS launcher (auto-generated)
+.monitor_hidden_runner.vbs
+
+# Cache and runtime data (auto-generated)
+course_map.json
+valid_headers.json
+homework_db.json
+homework_reminders.md
