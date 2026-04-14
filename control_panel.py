@@ -85,6 +85,7 @@ QUICK_NOTIFY_KEYS = [
     'SMTP_PORT',
     'SMTP_USERNAME',
     'SMTP_PASSWORD',
+    'SMTP_FROM',
     'SMTP_TO',
 ]
 
@@ -138,7 +139,7 @@ DEFAULTS = {
     'PUSHPLUS_TOKEN': '',
     'PUSHPLUS_TOPIC': '',
     'PUSHPLUS_TEMPLATE': 'txt',
-    'SMTP_HOST': '',
+    'SMTP_HOST': 'smtp.qq.com',
     'SMTP_PORT': '465',
     'SMTP_USE_SSL': 'true',
     'SMTP_STARTTLS': 'false',
@@ -673,7 +674,6 @@ TEMPLATE = r"""
       <button name="action" value="run_now" class="btn-green">立即运行一次</button>
       <button name="action" value="dry_run" class="btn-gray">试跑（dry-run）</button>
       <button name="action" value="test_desktop" class="btn-gray">测试桌面通知</button>
-      <button name="action" value="test_email" class="btn-gray">测试邮件</button>
       <button name="action" value="refresh_course_map" class="btn-primary">刷新课程映射</button>
     </div>
   </form>
@@ -1069,9 +1069,6 @@ def create_app() -> Flask:
                 settings = load_settings()
                 Notifier(settings)._send_desktop(settings.notify_title_prefix, 'Desktop notification test message.')
                 return '[ok] desktop test notification triggered.'
-            if action == 'test_email':
-                settings = load_settings()
-                return Notifier(settings).send_test_email()
             if action == 'refresh_course_map':
                 settings = load_settings()
                 if settings.course_map_file.exists():

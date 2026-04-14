@@ -104,11 +104,6 @@ def main() -> None:
         help="Send one desktop notification test message.",
     )
     parser.add_argument(
-        "--test-email",
-        action="store_true",
-        help="Send a test email to verify SMTP configuration.",
-    )
-    parser.add_argument(
         "--web",
         action="store_true",
         help="Start the local web control console.",
@@ -147,9 +142,6 @@ def main() -> None:
             print(end_windows_task(args.task_name))
         elif args.test_desktop_notify:
             test_desktop_notify()
-        elif args.test_email:
-            settings = load_settings()
-            print(Notifier(settings).send_test_email())
         elif args.web:
             from control_panel import run_control_panel
 

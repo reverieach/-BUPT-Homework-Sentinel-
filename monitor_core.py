@@ -657,11 +657,6 @@ class Notifier:
             print("[warn] email skipped: SMTP_PASSWORD (authorization code) is empty.")
             return
 
-        self._do_send_email(subject, message, from_addr, raise_on_error=False)
-
-    def _do_send_email(
-        self, subject: str, message: str, from_addr: str, *, raise_on_error: bool = False,
-    ) -> None:
         email = EmailMessage()
         email["Subject"] = subject
         email["From"] = from_addr
@@ -690,31 +685,6 @@ class Notifier:
                 server.send_message(email)
         except Exception as exc:
             print(f"[warn] email send failed: {exc}")
-            if raise_on_error:
-                raise
-
-    def send_test_email(self) -> str:
-        """Send a test email. Returns success message or raises on failure."""
-        missing: list[str] = []
-        if not self.settings.smtp_host:
-            missing.append("SMTP_HOST")
-        if not self.settings.smtp_to:
-            missing.append("SMTP_TO")
-        from_addr = self.settings.smtp_from or self.settings.smtp_username
-        if not from_addr:
-            missing.append("SMTP_FROM or SMTP_USERNAME")
-        if not self.settings.smtp_password:
-            missing.append("SMTP_PASSWORD (authorization code)")
-        if missing:
-            raise ValueError(f"Email configuration incomplete, missing: {', '.join(missing)}")
-
-        self._do_send_email(
-            subject=f"{self.settings.notify_title_prefix} Test Email",
-            message="This is a test email from BUPT Homework Sentinel. If you receive this, your email configuration is correct!",
-            from_addr=from_addr,
-            raise_on_error=True,
-        )
-        return f"[ok] test email sent to {', '.join(self.settings.smtp_to)}"
 
     def _send_desktop(self, title: str, message: str) -> None:
         def _ps_quote(text: str) -> str:
