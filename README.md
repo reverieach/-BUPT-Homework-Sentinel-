@@ -129,6 +129,26 @@ Windows Task Scheduler → wscript.exe → .vbs → pythonw.exe → monitor.py
 **Q: 代理导致请求失败？**
 设置 `DISABLE_SYSTEM_PROXY=true`。
 
+**Q: 如何配置 QQ 邮箱通知？**
+
+1. 登录 [QQ 邮箱网页版](https://mail.qq.com)
+2. 进入**设置** → **账户** → 找到「POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV 服务」
+3. 开启 **IMAP/SMTP 服务**，按提示用手机发短信验证
+4. 验证通过后会生成一个 **16 位授权码**（不是 QQ 密码！），复制保存
+5. 在 `.env` 或控制台中填写：
+   ```
+   NOTIFY_CHANNELS=email          # 加上 email
+   SMTP_HOST=smtp.qq.com
+   SMTP_PORT=465
+   SMTP_USE_SSL=true
+   SMTP_USERNAME=你的QQ号@qq.com
+   SMTP_PASSWORD=上面获取的16位授权码
+   SMTP_FROM=你的QQ号@qq.com
+   SMTP_TO=收件邮箱@xx.com
+   ```
+
+> **注意**：`SMTP_PASSWORD` 填的是**授权码**而非 QQ 登录密码。授权码只显示一次，如果丢失需要重新生成。
+
 **Q: 如何使用微信推送？**
 推荐 PushPlus：注册 [pushplus.plus](https://www.pushplus.plus) 获取 token，在 `NOTIFY_CHANNELS` 中加入 `pushplus`，填入 `PUSHPLUS_TOKEN`。
 
