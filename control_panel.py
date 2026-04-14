@@ -191,14 +191,14 @@ FIELD_META = {
     'PUSHPLUS_TOKEN': ('PushPlus Token', '更简单微信推送方案，去 pushplus.plus 获取 token。', ''),
     'PUSHPLUS_TOPIC': ('PushPlus Topic', '群组推送可选，不需要可留空。', ''),
     'PUSHPLUS_TEMPLATE': ('PushPlus 模板', '一般保持 txt。', 'txt'),
-    'SMTP_HOST': ('SMTP 主机', 'QQ邮箱示例：smtp.qq.com', 'smtp.qq.com'),
-    'SMTP_PORT': ('SMTP 端口', 'QQ邮箱 SSL 常用 465。', '465'),
-    'SMTP_USE_SSL': ('SMTP 使用SSL', 'QQ邮箱通常为 true。', ''),
-    'SMTP_STARTTLS': ('SMTP STARTTLS', '多数 QQ 配置为 false。', ''),
-    'SMTP_USERNAME': ('SMTP 用户名', '发件邮箱地址。', 'your@qq.com'),
-    'SMTP_PASSWORD': ('SMTP 密码/授权码', 'QQ邮箱请填写 SMTP 授权码。', ''),
-    'SMTP_FROM': ('发件人', '通常与 SMTP_USERNAME 相同。', 'your@qq.com'),
-    'SMTP_TO': ('收件人', '多个邮箱用英文逗号分隔。', 'a@qq.com,b@xx.com'),
+    'SMTP_HOST': ('SMTP 主机', 'QQ邮箱填 smtp.qq.com；其他邮箱请查对应SMTP地址。', 'smtp.qq.com'),
+    'SMTP_PORT': ('SMTP 端口', 'QQ邮箱 SSL 端口 465。', '465'),
+    'SMTP_USE_SSL': ('SMTP 使用SSL', 'QQ邮箱必须为 true。', ''),
+    'SMTP_STARTTLS': ('SMTP STARTTLS', '使用 SSL 时设为 false。', ''),
+    'SMTP_USERNAME': ('SMTP 用户名', '你的 QQ 邮箱地址，如 123456@qq.com。', 'your@qq.com'),
+    'SMTP_PASSWORD': ('SMTP 授权码', 'QQ邮箱→设置→账户→开启IMAP/SMTP服务→获取16位授权码（不是QQ密码）。', ''),
+    'SMTP_FROM': ('发件人', '通常与 SMTP 用户名相同。', 'your@qq.com'),
+    'SMTP_TO': ('收件人', '接收通知的邮箱，多个用英文逗号分隔。', 'a@qq.com,b@xx.com'),
     'TASK_NAME': ('任务名称', 'Windows 任务计划中的任务名。', 'HomeworkMonitorDaily'),
     'TASK_TIME': ('执行时间', '每天执行时间，24小时制 HH:MM。', '19:00'),
     'TASK_NO_CONSOLE': ('静默模式', 'true=完全静默不弹窗（推荐）。', ''),
@@ -673,6 +673,7 @@ TEMPLATE = r"""
       <button name="action" value="run_now" class="btn-green">立即运行一次</button>
       <button name="action" value="dry_run" class="btn-gray">试跑（dry-run）</button>
       <button name="action" value="test_desktop" class="btn-gray">测试桌面通知</button>
+      <button name="action" value="test_email" class="btn-gray">测试邮件</button>
       <button name="action" value="refresh_course_map" class="btn-primary">刷新课程映射</button>
     </div>
   </form>
@@ -1068,6 +1069,9 @@ def create_app() -> Flask:
                 settings = load_settings()
                 Notifier(settings)._send_desktop(settings.notify_title_prefix, 'Desktop notification test message.')
                 return '[ok] desktop test notification triggered.'
+            if action == 'test_email':
+                settings = load_settings()
+                return Notifier(settings).send_test_email()
             if action == 'refresh_course_map':
                 settings = load_settings()
                 if settings.course_map_file.exists():
