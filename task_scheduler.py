@@ -37,11 +37,10 @@ def ensure_hidden_launcher(script_path: Path, python_exec: Path) -> Path:
     launcher = cwd / ".monitor_hidden_runner.vbs"
     content = [
         'Set shell = CreateObject("Wscript.Shell")',
-        f'shell.CurrentDirectory = "{cwd}"',
         f'cmd = """" & "{python_exec}" & """ """ & "{script_path}" & """"',
         "shell.Run cmd, 0, False",
     ]
-    launcher.write_text("\n".join(content) + "\n", encoding="utf-8")
+    launcher.write_text("\n".join(content) + "\n", encoding="mbcs")
     return launcher
 
 
