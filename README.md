@@ -150,7 +150,8 @@ Windows Task Scheduler → wscript.exe → .vbs → pythonw.exe → monitor.py
 > **注意**：`SMTP_PASSWORD` 填的是**授权码**而非 QQ 登录密码。授权码只显示一次，如果丢失需要重新生成。
 
 **Q: 如何使用微信推送？**
-推荐 PushPlus：注册 [pushplus.plus](https://www.pushplus.plus) 获取 token，在 `NOTIFY_CHANNELS` 中加入 `pushplus`，填入 `PUSHPLUS_TOKEN`。
+推荐微信直接关注"qq邮箱提醒",这样配置好邮件提醒就可以在微信收到提醒，推荐这种方式。
+如使用pushplus，需要前往[pushplus.plus](https://www.pushplus.plus)获取token，可能会有相关费用，具体请看网站相关设置。
 
 ## License
 
