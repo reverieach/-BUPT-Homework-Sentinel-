@@ -144,7 +144,7 @@ Windows Task Scheduler → wscript.exe → .vbs → pythonw.exe → monitor.py
    SMTP_USERNAME=你的QQ号@qq.com
    SMTP_PASSWORD=上面获取的16位授权码
    SMTP_FROM=你的QQ号@qq.com
-   SMTP_TO=收件邮箱@xx.com
+   SMTP_TO=你想接收提醒的收件邮箱@xx.com（可与发件邮箱相同）
    ```
 
 > **注意**：`SMTP_PASSWORD` 填的是**授权码**而非 QQ 登录密码。授权码只显示一次，如果丢失需要重新生成。
