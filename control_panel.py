@@ -27,7 +27,8 @@ from task_scheduler import (
 ENV_PATH = Path('.env')
 
 CORE_KEYS = ['SCHOOL_ID', 'SCHOOL_PWD', 'UCLOUD_HOME_URL', 'USER_ID']
-CORE_REQUIRED_SETUP_KEYS = ['SCHOOL_ID', 'SCHOOL_PWD', 'UCLOUD_HOME_URL']
+ONBOARDING_KEYS = ['SCHOOL_ID', 'SCHOOL_PWD', 'PLAYWRIGHT_HEADLESS']
+CORE_REQUIRED_SETUP_KEYS = ['SCHOOL_ID', 'SCHOOL_PWD']
 
 RUNTIME_KEYS = [
     'SCHOOL_LOGIN_URL',
@@ -35,6 +36,7 @@ RUNTIME_KEYS = [
     'CAPTURE_WAIT_SECONDS',
     'API_BASE_URL',
     'API_UNDONE_ENDPOINT',
+    'API_HOMEWORK_DETAIL_ENDPOINT',
     'PAGE_SIZE',
     'HEADER_FILE',
     'STATE_FILE',
@@ -45,6 +47,8 @@ RUNTIME_KEYS = [
     'AUTO_REFRESH_HEADERS_ON_401',
     'TERM_ID',
     'REMINDER_DAYS',
+    'FETCH_HOMEWORK_CONTENT',
+    'HOMEWORK_CONTENT_MAX_CHARS',
     'AUTHORIZATION',
     'BLADE_AUTH',
 ]
@@ -71,6 +75,7 @@ NOTIFY_KEYS = [
 ]
 
 TASK_PREF_KEYS = ['TASK_NAME', 'TASK_TIME', 'TASK_NO_CONSOLE']
+EMAIL_DEFAULT_KEYS = {'SMTP_HOST', 'SMTP_PORT'}
 
 QUICK_NOTIFY_KEYS = [
     'NOTIFY_CHANNELS',
@@ -94,6 +99,7 @@ BOOL_KEYS = {
     'PLAYWRIGHT_HEADLESS',
     'DISABLE_SYSTEM_PROXY',
     'AUTO_REFRESH_HEADERS_ON_401',
+    'FETCH_HOMEWORK_CONTENT',
     'MARKDOWN_APPEND',
     'SMTP_USE_SSL',
     'SMTP_STARTTLS',
@@ -117,6 +123,7 @@ DEFAULTS = {
     'CAPTURE_WAIT_SECONDS': '5',
     'API_BASE_URL': 'https://apiucloud.bupt.edu.cn',
     'API_UNDONE_ENDPOINT': '/ykt-site/site/student/undone',
+    'API_HOMEWORK_DETAIL_ENDPOINT': '/ykt-site/work/detail',
     'PAGE_SIZE': '100',
     'HEADER_FILE': 'valid_headers.json',
     'STATE_FILE': 'homework_db.json',
@@ -127,6 +134,8 @@ DEFAULTS = {
     'AUTO_REFRESH_HEADERS_ON_401': 'true',
     'TERM_ID': '',
     'REMINDER_DAYS': '2,1,0',
+    'FETCH_HOMEWORK_CONTENT': 'true',
+    'HOMEWORK_CONTENT_MAX_CHARS': '1200',
     'AUTHORIZATION': '',
     'BLADE_AUTH': '',
     'NOTIFY_CHANNELS': 'desktop,markdown',
@@ -157,8 +166,8 @@ FIELD_META = {
     'SCHOOL_PWD': ('密码', '教务统一身份认证密码，仅用于自动登录抓取请求头。', '输入登录密码'),
     'UCLOUD_HOME_URL': (
         '云平台首页 URL',
-        '登录 ucloud 后进入你的学生首页，复制地址栏完整链接粘贴到这里。',
-        'https://ucloud.bupt.edu.cn/uclass/#/student/homePage?roleId=...',
+        '可留空。抓取请求头时会自动识别并写回带学生 roleId 的首页 URL。',
+        '自动识别，或手动填 https://ucloud.bupt.edu.cn/uclass/#/student/homePage?roleId=...',
     ),
     'USER_ID': ('用户ID', '不是学号。可留空，系统会优先从 BLADE_AUTH / 已抓取请求头自动解析。', '可留空'),
     'SCHOOL_LOGIN_URL': ('登录地址', '默认即可，一般无需改动。', ''),
@@ -166,6 +175,7 @@ FIELD_META = {
     'CAPTURE_WAIT_SECONDS': ('抓头等待秒数', '登录后等待 API 请求稳定发出所需时间。', '5'),
     'API_BASE_URL': ('API 根地址', '默认即可。', ''),
     'API_UNDONE_ENDPOINT': ('未完成作业接口路径', '默认即可。', ''),
+    'API_HOMEWORK_DETAIL_ENDPOINT': ('作业详情接口路径', '用于抓取作业内容；若内容抓不到，可按实际网络请求修改。', '/ykt-site/work/detail'),
     'PAGE_SIZE': ('每次拉取数量', '接口一次拉取作业条目数。', '100'),
     'HEADER_FILE': ('请求头文件', '抓头结果保存路径。', 'valid_headers.json'),
     'STATE_FILE': ('状态文件', '作业去重与提醒状态保存路径。', 'homework_db.json'),
@@ -174,8 +184,10 @@ FIELD_META = {
     'REQUEST_RETRY_DELAY_SEC': ('重试间隔(秒)', '每次重试的间隔。', '2'),
     'DISABLE_SYSTEM_PROXY': ('禁用系统代理', '若代理导致请求失败，改为 true。', ''),
     'AUTO_REFRESH_HEADERS_ON_401': ('401自动抓头', '接口401/403时是否自动抓头并重试。', ''),
-    'TERM_ID': ('学期ID', '用于只拉取本学期课程。可从 ucloud 课程页面的网络请求中获取 termId 参数。留空则拉取所有学期。', ''),
+    'TERM_ID': ('学期ID', '用于只拉取本学期课程。可从 ucloud 课程页面的网络请求中获取 termId 参数；留空则自动检测当前学期。', ''),
     'REMINDER_DAYS': ('截止提醒天数', '逗号分隔，如 2,1,0 表示截止前2/1/当天提醒。', '2,1,0'),
+    'FETCH_HOMEWORK_CONTENT': ('抓取作业内容', 'true=尝试从列表和详情接口提取作业内容。', ''),
+    'HOMEWORK_CONTENT_MAX_CHARS': ('作业内容长度', '保存和推送的作业内容最大字符数，0 表示不截断。', '1200'),
     'AUTHORIZATION': ('Authorization', '可选：手动粘贴鉴权头。建议留空让系统自动抓。', ''),
     'BLADE_AUTH': ('Blade-Auth', '可选：手动粘贴鉴权 token。', ''),
     'NOTIFY_CHANNELS': (
@@ -192,14 +204,14 @@ FIELD_META = {
     'PUSHPLUS_TOKEN': ('PushPlus Token', '更简单微信推送方案，去 pushplus.plus 获取 token。', ''),
     'PUSHPLUS_TOPIC': ('PushPlus Topic', '群组推送可选，不需要可留空。', ''),
     'PUSHPLUS_TEMPLATE': ('PushPlus 模板', '一般保持 txt。', 'txt'),
-    'SMTP_HOST': ('SMTP 主机', 'QQ邮箱填 smtp.qq.com；其他邮箱请查对应SMTP地址。', 'smtp.qq.com'),
-    'SMTP_PORT': ('SMTP 端口', 'QQ邮箱 SSL 端口 465。', '465'),
-    'SMTP_USE_SSL': ('SMTP 使用SSL', 'QQ邮箱必须为 true。', ''),
-    'SMTP_STARTTLS': ('SMTP STARTTLS', '使用 SSL 时设为 false。', ''),
-    'SMTP_USERNAME': ('SMTP 用户名', '你的 QQ 邮箱地址，如 123456@qq.com。', 'your@qq.com'),
-    'SMTP_PASSWORD': ('SMTP 授权码', 'QQ邮箱→设置→账户→开启IMAP/SMTP服务→获取16位授权码（不是QQ密码）。', ''),
-    'SMTP_FROM': ('发件人', '通常与 SMTP 用户名相同。', 'your@qq.com'),
-    'SMTP_TO': ('收件人', '接收通知的邮箱，多个用英文逗号分隔。', 'a@qq.com,b@xx.com'),
+    'SMTP_HOST': ('Email SMTP主机', '默认已填 QQ 邮箱的 smtp.qq.com；其他邮箱请按 README 的“常见问题”修改对应 SMTP 地址。', 'smtp.qq.com'),
+    'SMTP_PORT': ('Email SMTP端口', '默认已填 QQ 邮箱 SSL 端口 465；其他邮箱请按 README 的“常见问题”修改。', '465'),
+    'SMTP_USE_SSL': ('SMTP 使用SSL', 'QQ 邮箱通常为 true；具体配置可查看 README 的“常见问题”。', ''),
+    'SMTP_STARTTLS': ('SMTP STARTTLS', '使用 SSL 时一般为 false；具体配置可查看 README 的“常见问题”。', ''),
+    'SMTP_USERNAME': ('SMTP 用户名', '填写你的邮箱地址；QQ 邮箱配置方法见 README 的“常见问题”。', 'your@qq.com'),
+    'SMTP_PASSWORD': ('SMTP 授权码', 'QQ 邮箱这里填授权码而不是登录密码；具体说明见 README 的“常见问题”。', ''),
+    'SMTP_FROM': ('发件人', '通常与 SMTP 用户名相同；详细配置见 README 的“常见问题”。', 'your@qq.com'),
+    'SMTP_TO': ('收件人', '接收通知的邮箱，多个用英文逗号分隔；详细配置见 README 的“常见问题”。', 'a@qq.com,b@xx.com'),
     'TASK_NAME': ('任务名称', 'Windows 任务计划中的任务名。', 'HomeworkMonitorDaily'),
     'TASK_TIME': ('执行时间', '每天执行时间，24小时制 HH:MM。', '19:00'),
     'TASK_NO_CONSOLE': ('静默模式', 'true=完全静默不弹窗（推荐）。', ''),
@@ -570,7 +582,7 @@ TEMPLATE = r"""
   <form class="card" method="post" action="/save_env" style="margin-bottom: 16px;">
     <input type="hidden" name="scope" value="onboarding" />
     <h2><span class="icon">&#9881;</span> 关键配置（首次必填）</h2>
-    <p class="card-desc">学号、密码和云平台首页地址是系统运行的必要信息。</p>
+    <p class="card-desc">先填写学号和密码；带学生 roleId 的云平台首页 URL 会在抓取请求头时自动识别。</p>
     <div class="field-grid">
       {% for f in onboarding_fields %}
       <div class="field {% if f.full %}full{% endif %}">
@@ -830,6 +842,10 @@ def _load_env_values() -> dict[str, str]:
         key = key.strip()
         if key:
             values[key] = value.strip()
+
+    for key in EMAIL_DEFAULT_KEYS:
+        if not values.get(key, '').strip():
+            values[key] = DEFAULTS[key]
     return values
 
 
@@ -947,7 +963,7 @@ def _setup_statuses(values: dict[str, str]) -> list[dict[str, str | bool]]:
     return [
         {'label': '填写学号（SCHOOL_ID）', 'done': bool(values.get('SCHOOL_ID', '').strip())},
         {'label': '填写密码（SCHOOL_PWD）', 'done': bool(values.get('SCHOOL_PWD', '').strip())},
-        {'label': '填写云平台首页URL（UCLOUD_HOME_URL）', 'done': bool(values.get('UCLOUD_HOME_URL', '').strip())},
+        {'label': '学生首页URL自动识别（UCLOUD_HOME_URL 可留空）', 'done': True},
         {'label': '已抓取请求头（valid_headers.json）', 'done': header_file.exists()},
     ]
 
@@ -986,7 +1002,10 @@ def _get_status_info(values: dict[str, str]) -> dict[str, str | int]:
 def _apply_form_values(values: dict[str, str], keys: list[str]) -> dict[str, str]:
     for key in keys:
         if key in request.form:
-            values[key] = request.form.get(key, '').strip()
+            value = request.form.get(key, '').strip()
+            if key in EMAIL_DEFAULT_KEYS and not value:
+                value = DEFAULTS[key]
+            values[key] = value
     return values
 
 
@@ -1011,7 +1030,7 @@ def create_app() -> Flask:
             values=values,
             first_run=first_run,
             setup_statuses=_setup_statuses(values),
-            onboarding_fields=_build_fields(values, CORE_KEYS + ['PLAYWRIGHT_HEADLESS'], 'onb'),
+            onboarding_fields=_build_fields(values, ONBOARDING_KEYS, 'onb'),
             quick_notify_fields=_build_fields(values, QUICK_NOTIFY_KEYS, 'quick'),
             task_fields=_build_fields(values, TASK_PREF_KEYS, 'task'),
             advanced_fields=_build_fields(values, CORE_KEYS + RUNTIME_KEYS + NOTIFY_KEYS, 'adv'),
@@ -1030,7 +1049,7 @@ def create_app() -> Flask:
         scope = request.form.get('scope', 'advanced').strip()
 
         if scope == 'onboarding':
-            keys = CORE_KEYS + ['PLAYWRIGHT_HEADLESS']
+            keys = ONBOARDING_KEYS
         elif scope == 'quick_notify':
             keys = QUICK_NOTIFY_KEYS
         elif scope == 'task':

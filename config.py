@@ -22,6 +22,14 @@ def _get_bool(name: str, default: bool) -> bool:
     return raw in {"1", "true", "yes", "y", "on"}
 
 
+def _get_str(name: str, default: str = "") -> str:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    text = raw.strip()
+    return text if text else default
+
+
 def _get_int_list(name: str, default: str) -> tuple[int, ...]:
     raw = os.getenv(name, default).strip()
     if not raw:
@@ -103,8 +111,11 @@ class Settings:
     blade_auth: str
     course_list_endpoint: str
     course_work_endpoint: str
+    homework_detail_endpoint: str
     course_map_file: Path
     term_id: str
+    fetch_homework_content: bool
+    homework_content_max_chars: int
 
     @property
     def undone_url(self) -> str:
@@ -132,8 +143,8 @@ def load_settings() -> Settings:
             notify_channels = ()
 
     return Settings(
-        api_base_url=os.getenv("API_BASE_URL", "https://apiucloud.bupt.edu.cn").strip(),
-        undone_endpoint=os.getenv("API_UNDONE_ENDPOINT", "/ykt-site/site/student/undone").strip(),
+        api_base_url=_get_str("API_BASE_URL", "https://apiucloud.bupt.edu.cn"),
+        undone_endpoint=_get_str("API_UNDONE_ENDPOINT", "/ykt-site/site/student/undone"),
         user_id=user_id,
         page_size=_get_int("PAGE_SIZE", 100),
         request_timeout_sec=_get_int("REQUEST_TIMEOUT_SEC", 15),
@@ -165,28 +176,34 @@ def load_settings() -> Settings:
         smtp_to=_get_str_list("SMTP_TO", ""),
         playwright_headless=_get_bool("PLAYWRIGHT_HEADLESS", True),
         capture_wait_seconds=max(1, _get_int("CAPTURE_WAIT_SECONDS", 5)),
-        login_url=os.getenv(
+        login_url=_get_str(
             "SCHOOL_LOGIN_URL",
             "https://auth.bupt.edu.cn/authserver/login?service=https://ucloud.bupt.edu.cn",
-        ).strip(),
-        home_url=os.getenv(
+        ),
+        home_url=_get_str(
             "UCLOUD_HOME_URL",
             "https://ucloud.bupt.edu.cn/uclass/#/student/homePage?roleId=1318863781576577025",
-        ).strip(),
+        ),
         school_id=os.getenv("SCHOOL_ID", "").strip(),
         school_pwd=os.getenv("SCHOOL_PWD", "").strip(),
         authorization=os.getenv("AUTHORIZATION", "").strip(),
         blade_auth=blade_auth,
-        course_list_endpoint=os.getenv(
+        course_list_endpoint=_get_str(
             "API_COURSE_LIST_ENDPOINT",
             "/ykt-site/site/list/student/history",
-        ).strip(),
-        course_work_endpoint=os.getenv(
+        ),
+        course_work_endpoint=_get_str(
             "API_COURSE_WORK_ENDPOINT",
             "/ykt-site/work/student/list",
-        ).strip(),
+        ),
+        homework_detail_endpoint=_get_str(
+            "API_HOMEWORK_DETAIL_ENDPOINT",
+            "/ykt-site/work/detail",
+        ),
         course_map_file=_get_path("COURSE_MAP_FILE", "course_map.json"),
         term_id=os.getenv("TERM_ID", "").strip(),
+        fetch_homework_content=_get_bool("FETCH_HOMEWORK_CONTENT", True),
+        homework_content_max_chars=max(0, _get_int("HOMEWORK_CONTENT_MAX_CHARS", 1200)),
     )
 
 

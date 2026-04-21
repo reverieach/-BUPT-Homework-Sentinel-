@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import time
 import base64
+import html
+import re
 import smtplib
 import subprocess
 from dataclasses import dataclass, field
@@ -113,7 +115,8 @@ class MonitorState:
 @dataclass(frozen=True)
 class NotificationEvent:
     event_type: str  # NEW / DUE
-    message: str
+    summary: str
+    full_message: str
 
 
 def _empty_state() -> MonitorState:
@@ -258,6 +261,10 @@ def _course_list_url(settings: Settings) -> str:
 
 def _course_work_url(settings: Settings) -> str:
     return f"{settings.api_base_url.rstrip('/')}/{settings.course_work_endpoint.lstrip('/')}"
+
+
+def _homework_detail_url(settings: Settings) -> str:
+    return f"{settings.api_base_url.rstrip('/')}/{settings.homework_detail_endpoint.lstrip('/')}"
 
 
 def _load_course_map(settings: Settings) -> dict[str, str]:
@@ -495,14 +502,92 @@ def fetch_undone_list(settings: Settings) -> list[dict[str, Any]]:
     raise RuntimeError(f"Failed to fetch undone assignments: {last_error}") from last_error
 
 
-_TITLE_KEYS = ("activityName", "name", "title")
+_TITLE_KEYS = ("activityName", "assignmentTitle", "name", "title")
 _COURSE_KEYS = (
     "_courseName", "courseName", "siteName", "siteCourseName", "courseNatureName",
     "className", "course", "subjectName",
 )
+_CONTENT_KEYS = (
+    "_content",
+    "content",
+    "assignmentContent",
+    "assignmentComment",
+    "activityContent",
+    "workContent",
+    "homeworkContent",
+    "description",
+    "desc",
+    "requirement",
+    "requirements",
+    "notice",
+    "remark",
+    "remarks",
+    "summary",
+    "body",
+    "text",
+)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"[ \t\r\f\v]+")
 
 
-def _new_assignment_message(item: dict[str, Any], deadline: datetime | None) -> str:
+def _normalize_content_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list)):
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    text = html.unescape(text)
+    text = re.sub(r"(?i)<\s*br\s*/?\s*>", "\n", text)
+    text = re.sub(r"(?i)</\s*p\s*>", "\n", text)
+    text = _HTML_TAG_RE.sub("", text)
+    lines = []
+    for line in text.splitlines():
+        line = _WHITESPACE_RE.sub(" ", line).strip()
+        if line:
+            lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def _extract_assignment_content(payload: Any) -> str:
+    if isinstance(payload, list):
+        for item in payload:
+            content = _extract_assignment_content(item)
+            if content:
+                return content
+        return ""
+
+    if not isinstance(payload, dict):
+        return ""
+
+    for key in _CONTENT_KEYS:
+        content = _normalize_content_text(payload.get(key))
+        if content:
+            return content
+
+    for nested_key in ("data", "detail", "record", "work", "activity", "homework"):
+        content = _extract_assignment_content(payload.get(nested_key))
+        if content:
+            return content
+
+    return ""
+
+
+def _truncate_text(text: str, max_chars: int) -> str:
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
+
+
+def _assignment_content(item: dict[str, Any], max_chars: int | None = None) -> str:
+    content = _extract_assignment_content(item)
+    if max_chars is not None:
+        return _truncate_text(content, max_chars)
+    return content
+
+
+def _new_assignment_summary(item: dict[str, Any], deadline: datetime | None) -> str:
     title = _pick_str(item, *_TITLE_KEYS, default="Untitled")
     course = _pick_str(item, *_COURSE_KEYS)
     if course:
@@ -510,7 +595,7 @@ def _new_assignment_message(item: dict[str, Any], deadline: datetime | None) -> 
     return f"[NEW] {title} | Due: {_format_deadline(deadline)}"
 
 
-def _deadline_message(item: dict[str, Any], deadline: datetime, days_left: int) -> str:
+def _deadline_summary(item: dict[str, Any], deadline: datetime, days_left: int) -> str:
     title = _pick_str(item, *_TITLE_KEYS, default="Untitled")
     course = _pick_str(item, *_COURSE_KEYS)
     if course:
@@ -518,8 +603,87 @@ def _deadline_message(item: dict[str, Any], deadline: datetime, days_left: int) 
     return f"[DUE] {days_left}d left | {title} | Due: {_format_deadline(deadline)}"
 
 
+def _event_full_message(summary: str, item: dict[str, Any], max_chars: int) -> str:
+    content = _assignment_content(item, max_chars=max_chars)
+    if not content:
+        return summary
+    return f"{summary}\nContent:\n{content}"
+
+
 def _assignment_id(item: dict[str, Any]) -> str:
     return _pick_str(item, "activityId", "id", "homeworkId")
+
+
+def _fetch_homework_detail(
+    session: requests.Session,
+    headers: dict[str, str],
+    settings: Settings,
+    item: dict[str, Any],
+) -> dict[str, Any]:
+    aid = _assignment_id(item)
+    if not aid or not settings.homework_detail_endpoint:
+        return {}
+
+    url = _homework_detail_url(settings)
+    request_variants: list[tuple[str, dict[str, Any]]] = [
+        ("get", {"params": {"assignmentId": aid}}),
+        ("get", {"params": {"activityId": aid}}),
+        ("post", {"json": {"assignmentId": aid}}),
+        ("post", {"json": {"activityId": aid}}),
+    ]
+
+    for method, kwargs in request_variants:
+        try:
+            response = session.request(
+                method,
+                url,
+                headers=headers,
+                timeout=settings.request_timeout_sec,
+                **kwargs,
+            )
+            if response.status_code in (401, 403):
+                raise AuthExpiredError(f"Auth failed ({response.status_code}) fetching homework detail")
+            if response.status_code in (404, 405):
+                continue
+            response.raise_for_status()
+            payload = response.json()
+            if isinstance(payload, dict) and _extract_assignment_content(payload):
+                return payload
+        except AuthExpiredError:
+            raise
+        except Exception:
+            continue
+
+    return {}
+
+
+def enrich_homework_content(settings: Settings, undone_list: list[dict[str, Any]]) -> None:
+    if not settings.fetch_homework_content:
+        return
+
+    headers = _load_headers(settings)
+    session = _make_session(settings)
+    fetched_count = 0
+    existing_count = 0
+
+    for item in undone_list:
+        existing_content = _assignment_content(item, settings.homework_content_max_chars)
+        if existing_content:
+            item["_content"] = existing_content
+            existing_count += 1
+            continue
+
+        detail = _fetch_homework_detail(session, headers, settings, item)
+        content = _assignment_content(detail, settings.homework_content_max_chars)
+        if content:
+            item["_content"] = content
+            fetched_count += 1
+
+    if existing_count or fetched_count:
+        print(
+            f"[ok] homework content enriched: "
+            f"{existing_count} from list, {fetched_count} from detail"
+        )
 
 
 def analyze_assignments(
@@ -537,6 +701,7 @@ def analyze_assignments(
             continue
 
         deadline = _extract_deadline(item)
+        content = _assignment_content(item, settings.homework_content_max_chars)
         known_info = state.known_assignments.get(aid)
 
         if known_info is None:
@@ -545,11 +710,14 @@ def analyze_assignments(
                 "course": _pick_str(item, *_COURSE_KEYS),
                 "first_seen": current.isoformat(),
                 "deadline": deadline.isoformat() if deadline else "",
+                "content": content,
             }
+            summary = _new_assignment_summary(item, deadline)
             events.append(
                 NotificationEvent(
                     event_type="NEW",
-                    message=_new_assignment_message(item, deadline),
+                    summary=summary,
+                    full_message=_event_full_message(summary, item, settings.homework_content_max_chars),
                 )
             )
         else:
@@ -562,6 +730,9 @@ def analyze_assignments(
             course = _pick_str(item, *_COURSE_KEYS)
             if course:
                 known_info["course"] = course
+            if content:
+                known_info["content"] = content
+                known_info["content_updated_at"] = current.isoformat()
 
         if not deadline:
             continue
@@ -580,10 +751,12 @@ def analyze_assignments(
 
         history.append(days_left)
         history[:] = sorted(set(history), reverse=True)
+        summary = _deadline_summary(item, deadline, days_left)
         events.append(
             NotificationEvent(
                 event_type="DUE",
-                message=_deadline_message(item, deadline, days_left),
+                summary=summary,
+                full_message=_event_full_message(summary, item, settings.homework_content_max_chars),
             )
         )
 
@@ -721,7 +894,7 @@ class Notifier:
         now = _now_local().strftime("%Y-%m-%d %H:%M:%S %z")
         lines = [f"## Run At {now}", ""]
         for row in rows:
-            lines.append(f"- {row}")
+            lines.append(f"- {row.replace(chr(10), chr(10) + '  ')}")
         lines.append("")
         block = "\n".join(lines)
 
@@ -741,22 +914,23 @@ class Notifier:
             if event_allow and event.event_type.upper() not in event_allow:
                 continue
 
-            message = f"{self.settings.notify_title_prefix} {event.message}".strip()
-            selected_rows.append(message)
+            summary_message = f"{self.settings.notify_title_prefix} {event.summary}".strip()
+            full_message = f"{self.settings.notify_title_prefix} {event.full_message}".strip()
+            selected_rows.append(full_message)
             if self.settings.enable_console_notify and "console" in channels:
-                print(message)
+                print(full_message)
             if "webhook" in channels:
-                self._send_webhook(message)
+                self._send_webhook(full_message)
             if "wechat" in channels:
-                self._send_wechat(message)
+                self._send_wechat(full_message)
             if "pushplus" in channels:
                 subject = f"{self.settings.notify_title_prefix} {event.event_type}".strip()
-                self._send_pushplus(subject, message)
+                self._send_pushplus(subject, full_message)
             if "email" in channels:
                 subject = f"{self.settings.notify_title_prefix} {event.event_type}".strip()
-                self._send_email(subject, message)
+                self._send_email(subject, full_message)
             if "desktop" in channels:
-                self._send_desktop(self.settings.notify_title_prefix, event.message)
+                self._send_desktop(self.settings.notify_title_prefix, event.summary)
 
         if "markdown" in channels:
             self._write_markdown(selected_rows)
@@ -779,6 +953,11 @@ def run_monitor_once(*, dry_run: bool = False) -> list[str]:
     if course_map:
         _inject_course_names(undone_list, course_map)
 
+    try:
+        enrich_homework_content(settings, undone_list)
+    except Exception as exc:
+        print(f"[warn] homework content fetch failed, continuing without: {exc}")
+
     events = analyze_assignments(undone_list, state, settings)
 
     if events:
@@ -789,4 +968,4 @@ def run_monitor_once(*, dry_run: bool = False) -> list[str]:
     if not dry_run:
         save_state(settings.state_file, state)
 
-    return [e.message for e in events]
+    return [e.full_message for e in events]

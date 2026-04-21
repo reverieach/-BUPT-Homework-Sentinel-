@@ -119,7 +119,6 @@ def main() -> None:
         default=5000,
         help="Web console port.",
     )
-
     args = parser.parse_args()
     try:
         if args.install_daily_task:

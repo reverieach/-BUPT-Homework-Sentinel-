@@ -6,6 +6,7 @@
 
 - 自动拉取未完成作业列表，新作业去重提醒
 - 截止日期提醒（默认剩余 2 / 1 / 0 天各提醒一次）
+- 自动抓取作业内容（如详情接口可用，会一并写入通知与 Markdown 记录）
 - 自动关联课程名（通过扫描选课列表匹配，支持自动检测当前学期）
 - 401/403 自动重新抓取请求头并重试
 - 多渠道通知：`console` / `desktop` / `markdown` / `wechat` / `pushplus` / `email` / `webhook`
@@ -39,11 +40,13 @@ python monitor.py --web
 
 ### 4. 首次配置流程
 
-1. 填写**学号**、**密码**、**云平台首页 URL**（登录 ucloud 后复制地址栏链接）
+1. 填写**学号**、**密码**
 2. 点击「保存关键配置」
-3. 点击「抓取请求头」（系统会自动登录并捕获鉴权信息）
+3. 点击「抓取请求头」（系统会自动登录、自动识别带学生 `roleId` 的首页 URL，并捕获鉴权信息）
 4. 点击「试跑（dry-run）」验证是否正常
 5. 设置定时任务时间，点击「安装/更新任务」
+
+> 如有需要，也可以在高级设置里手动填写 `UCLOUD_HOME_URL`；但大多数情况下无需手动粘贴。
 
 ### 5. 日常使用
 
@@ -110,6 +113,12 @@ Windows Task Scheduler → wscript.exe → .vbs → pythonw.exe → monitor.py
 | `email` | SMTP 邮件（支持 QQ 邮箱等） |
 | `webhook` | 任意 JSON POST Webhook |
 
+### 通知内容说明
+
+- `desktop`：只显示摘要，避免气泡通知过长
+- `console` / `markdown` / `wechat` / `pushplus` / `email` / `webhook`：会附带抓取到的作业内容
+- 若作业详情接口没有返回正文，则仍会正常提醒标题、课程和截止时间
+
 ## 课程名关联
 
 系统会自动扫描你的选课列表，将作业与对应课程匹配。
@@ -129,6 +138,9 @@ Windows Task Scheduler → wscript.exe → .vbs → pythonw.exe → monitor.py
 **Q: 代理导致请求失败？**
 设置 `DISABLE_SYSTEM_PROXY=true`。
 
+**Q: 为什么通知里没有作业内容？**
+先确认 `FETCH_HOMEWORK_CONTENT=true`。如果仍无内容，检查 `API_HOMEWORK_DETAIL_ENDPOINT` 是否与浏览器网络请求一致；当前北邮云平台常见值为 `/ykt-site/work/detail`。
+
 **Q: 如何配置 QQ 邮箱通知？**
 
 1. 登录 [QQ 邮箱网页版](https://mail.qq.com)
@@ -147,21 +159,23 @@ Windows Task Scheduler → wscript.exe → .vbs → pythonw.exe → monitor.py
    SMTP_TO=你想接收提醒的收件邮箱@xx.com（可与发件邮箱相同）
    ```
 
+> 控制台中 `SMTP_HOST` 和 `SMTP_PORT` 默认已填好 QQ 邮箱的 `smtp.qq.com` 和 `465`，通常无需手动填写。
+
 > **注意**：`SMTP_PASSWORD` 填的是**授权码**而非 QQ 登录密码。授权码只显示一次，如果丢失需要重新生成。
 
-**Q:其他都正常但是就是邮箱收不到提醒怎么办？**
+**Q: 其他都正常，但是邮箱收不到提醒怎么办？**
 
-确定所有的关于邮箱的信息都已准确无误填入，特别是请检查一下授权码和smtp邮箱主机是否正确填入！（我舍友就是没填smtp主机让我查了一晚上bug）
-
-确定在 NOTIFY_CHANNELS 中已经加入了email，并且用 “,” 正确分隔
+1. 确定所有关于邮箱的信息都已准确无误填入，特别检查**授权码**和 `SMTP_HOST` 是否正确填写  
+   （我舍友就是没填 `SMTP_HOST`，让我查了一晚上 bug）
+2. 确定在 `NOTIFY_CHANNELS` 中已经加入了 `email`，并且用 `,` 正确分隔
 
 **Q: 如何使用微信推送？**
 
-微信直接关注"qq邮箱提醒",这样配置好邮件提醒就可以在微信收到提醒，推荐这种方式。
+微信可以直接关注“QQ邮箱提醒”，这样配置好邮件提醒后就可以在微信收到提醒，推荐这种方式。
 
-如使用pushplus，需要前往[pushplus.plus](https://www.pushplus.plus)获取token，可能会有相关费用，具体请看网站相关设置。
+如使用 PushPlus，需要前往 [pushplus.plus](https://www.pushplus.plus) 获取 token，可能会有相关费用，具体请查看网站说明。
 
-## 觉得有用的话可以点个star支持一下！好的建议或者问题可以提在issue里！
+觉得有用的话可以点个 star 支持一下！好的建议或者问题也欢迎提到 issue 里！
 
 ## License
 
